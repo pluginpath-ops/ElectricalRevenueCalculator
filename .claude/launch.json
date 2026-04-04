@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Energy Revenue Estimator (dev)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/greg/WebProject/GenerationRevenue/energy-revenue-estimator && /opt/homebrew/bin/node node_modules/.bin/vite"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "Energy Revenue Estimator (preview)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/greg/WebProject/GenerationRevenue/energy-revenue-estimator && /opt/homebrew/bin/node node_modules/.bin/vite preview"
+      ],
+      "port": 4173
+    }
+  ]
+}
