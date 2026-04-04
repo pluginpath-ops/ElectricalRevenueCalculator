@@ -23,9 +23,16 @@ export function ExampleDataLoader({ target, onLoad, disabled }: Props) {
   useEffect(() => {
     fetch('/examples/manifest.json')
       .then(r => r.json())
-      .then((data: ManifestEntry[]) => setManifest(data))
+      .then((data: ManifestEntry[]) => {
+        setManifest(data)
+        const first = data.find((e: ManifestEntry) => e.type === target)
+        if (first) {
+          setSelected(first.id)
+          onLoad(`/examples/${first.file}`, first.file)
+        }
+      })
       .catch(console.error)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const options = manifest.filter(e => e.type === target)
 

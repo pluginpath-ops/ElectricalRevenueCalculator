@@ -1,6 +1,6 @@
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  ReferenceLine,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 import type { RevenueSummary } from '../../types/revenue'
 import { useChartInteraction } from '../../hooks/useChartInteraction'
@@ -12,16 +12,12 @@ interface Props {
 
 const CHART_HEIGHT = 200
 const MARGIN = { top: 4, right: 52, left: 0, bottom: 0 }
-const GRID = <CartesianGrid strokeDasharray="3 3" stroke="#F1F3F5" vertical={false} />
-const XAXIS = (
-  <XAxis
-    dataKey="hour"
-    tick={{ fontSize: 10, fill: '#4B5563' }}
-    axisLine={false}
-    tickLine={false}
-    interval={2}
-  />
-)
+
+/** Make a Y-axis domain symmetric around 0 so zero always sits at mid-chart. */
+function symDomain(vals: number[]): [number, number] {
+  const absMax = Math.max(...vals.map(Math.abs), 0.01)
+  return [-absMax, absMax]
+}
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -57,11 +53,16 @@ export function LineByDay({ summary }: Props) {
 
   const batData = dayRecords.map(r => ({
     hour: formatHour(r.hour),
-    'Discharge (kWh)': parseFloat(r.batteryDischargeKwh.toFixed(2)),
-    'Charge (kWh)': parseFloat((-r.batteryChargeKwh).toFixed(2)),
+    // Positive = discharge, negative = charge — single line
+    'Power (kWh)': parseFloat((r.batteryDischargeKwh - r.batteryChargeKwh).toFixed(2)),
     'SOC (MWh)': parseFloat(r.socMwh.toFixed(3)),
     'Bat Rev ($)': parseFloat(r.batteryRevenue.toFixed(3)),
   }))
+
+  const priceDomain = symDomain(genData.map(d => d['Price ($/MWh)']))
+  const genRevDomain = symDomain(genData.map(d => d['Gen Rev ($)']))
+  const powerDomain = symDomain(batData.map(d => d['Power (kWh)']))
+  const batRevDomain = symDomain(batData.map(d => d['Bat Rev ($)']))
 
   return (
     <div className="space-y-4">
@@ -69,39 +70,36 @@ export function LineByDay({ summary }: Props) {
       <Card title={`Generation — ${label}`}>
         <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
           <LineChart data={genData} margin={MARGIN}>
-            {GRID}
-            {XAXIS}
+            <CartesianGrid strokeDasharray="3 3" stroke="#F1F3F5" vertical={false} />
+            <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#4B5563' }} axisLine={false} tickLine={false} interval={2} />
             <YAxis
               yAxisId="gen"
               tick={{ fontSize: 10, fill: '#4B5563' }}
-              axisLine={false}
-              tickLine={false}
-              width={40}
-              tickFormatter={v => `${v}`}
+              axisLine={false} tickLine={false} width={40}
             />
             <YAxis
               yAxisId="price"
               orientation="right"
+              domain={priceDomain}
               tick={{ fontSize: 10, fill: '#8B5CF6' }}
-              axisLine={false}
-              tickLine={false}
-              width={44}
+              axisLine={false} tickLine={false} width={44}
               tickFormatter={v => `$${v}`}
             />
             <YAxis
               yAxisId="rev"
               orientation="right"
+              domain={genRevDomain}
               tick={{ fontSize: 10, fill: '#16A34A' }}
-              axisLine={false}
-              tickLine={false}
-              width={44}
+              axisLine={false} tickLine={false} width={44}
               tickFormatter={v => `$${v}`}
             />
+            {/* Zero line rendered on the price axis (symmetric, so zero is centred) */}
+            <ReferenceLine yAxisId="price" y={0} stroke="#9CA3AF" strokeWidth={1} />
             <Tooltip contentStyle={{ border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '12px' }} />
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-            <Line yAxisId="gen" type="monotone" dataKey="Gen (kWh)" stroke="#F59E0B" dot={false} strokeWidth={1.5} />
-            <Line yAxisId="price" type="stepAfter" dataKey="Price ($/MWh)" stroke="#8B5CF6" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
-            <Line yAxisId="rev" type="monotone" dataKey="Gen Rev ($)" stroke="#16A34A" dot={false} strokeWidth={1.5} />
+            <Line yAxisId="gen"   type="monotone"  dataKey="Gen (kWh)"    stroke="#F59E0B" dot={false} strokeWidth={1.5} />
+            <Line yAxisId="price" type="stepAfter"  dataKey="Price ($/MWh)" stroke="#8B5CF6" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
+            <Line yAxisId="rev"   type="monotone"  dataKey="Gen Rev ($)"   stroke="#16A34A" dot={false} strokeWidth={1.5} />
           </LineChart>
         </ResponsiveContainer>
       </Card>
@@ -111,44 +109,36 @@ export function LineByDay({ summary }: Props) {
         <Card title={`Battery — ${label}`}>
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
             <LineChart data={batData} margin={MARGIN}>
-              {GRID}
-              {XAXIS}
-              {/* Left axis: discharge/charge kWh */}
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F3F5" vertical={false} />
+              <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#4B5563' }} axisLine={false} tickLine={false} interval={2} />
               <YAxis
                 yAxisId="power"
-                tick={{ fontSize: 10, fill: '#4B5563' }}
-                axisLine={false}
-                tickLine={false}
-                width={40}
-                tickFormatter={v => `${v}`}
+                domain={powerDomain}
+                tick={{ fontSize: 10, fill: '#F97316' }}
+                axisLine={false} tickLine={false} width={40}
               />
-              {/* Right axis: SOC */}
               <YAxis
                 yAxisId="soc"
                 orientation="right"
                 tick={{ fontSize: 10, fill: '#06B6D4' }}
-                axisLine={false}
-                tickLine={false}
-                width={44}
+                axisLine={false} tickLine={false} width={44}
                 tickFormatter={v => `${v}`}
               />
-              {/* Second right axis: battery revenue */}
               <YAxis
                 yAxisId="rev"
                 orientation="right"
+                domain={batRevDomain}
                 tick={{ fontSize: 10, fill: '#16A34A' }}
-                axisLine={false}
-                tickLine={false}
-                width={44}
+                axisLine={false} tickLine={false} width={44}
                 tickFormatter={v => `$${v}`}
               />
-              <ReferenceLine yAxisId="power" y={0} stroke="#D1D5DB" strokeWidth={1} />
+              {/* Zero line — power axis is symmetric so zero is always centred */}
+              <ReferenceLine yAxisId="power" y={0} stroke="#9CA3AF" strokeWidth={1} />
               <Tooltip contentStyle={{ border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '12px' }} />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-              <Line yAxisId="power" type="stepAfter" dataKey="Discharge (kWh)" stroke="#F97316" dot={false} strokeWidth={1.5} />
-              <Line yAxisId="power" type="stepAfter" dataKey="Charge (kWh)" stroke="#3B82F6" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
-              <Line yAxisId="soc" type="monotone" dataKey="SOC (MWh)" stroke="#06B6D4" dot={false} strokeWidth={1.5} />
-              <Line yAxisId="rev" type="monotone" dataKey="Bat Rev ($)" stroke="#16A34A" dot={false} strokeWidth={1.5} strokeDasharray="2 2" />
+              <Line yAxisId="power" type="stepAfter" dataKey="Power (kWh)" stroke="#F97316" dot={false} strokeWidth={1.5} />
+              <Line yAxisId="soc"   type="monotone"  dataKey="SOC (MWh)"   stroke="#06B6D4" dot={false} strokeWidth={1.5} />
+              <Line yAxisId="rev"   type="monotone"  dataKey="Bat Rev ($)"  stroke="#16A34A" dot={false} strokeWidth={1.5} strokeDasharray="2 2" />
             </LineChart>
           </ResponsiveContainer>
         </Card>
