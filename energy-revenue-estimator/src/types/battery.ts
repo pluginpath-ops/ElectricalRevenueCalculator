@@ -1,4 +1,4 @@
-export type BatteryStrategy = 'solar-follower' | 'strike-price' | 'hour-ahead'
+export type BatteryStrategy = 'solar-follower' | 'strike-price' | 'hour-ahead' | 'peak-shaving'
 
 export interface BatteryConfig {
   enabled: boolean
@@ -20,8 +20,14 @@ export interface BatteryConfig {
   solarChargeThresholdKwh: number
   /** For solar-follower: minimum price ($/MWh) required to discharge (default 0) */
   minDischargePrice: number
-  /** For hour-ahead: number of hours of price visibility (1–12) */
+  /** For hour-ahead / peak-shaving: number of hours of price visibility (1–12) */
   lookAheadHours: number
+  /** For peak-shaving: minimum combined output (solar + battery) in kW during TOU window */
+  demandThresholdKw: number
+  /** For peak-shaving: TOU window start hour, inclusive (0–23) */
+  touStartHour: number
+  /** For peak-shaving: TOU window end hour, exclusive (1–24) */
+  touEndHour: number
 }
 
 export interface BatteryState {
@@ -42,4 +48,7 @@ export const DEFAULT_BATTERY_CONFIG: BatteryConfig = {
   solarChargeThresholdKwh: 0,
   minDischargePrice: 0,
   lookAheadHours: 4,
+  demandThresholdKw: 100,
+  touStartHour: 7,
+  touEndHour: 21,
 }

@@ -74,6 +74,20 @@ export function calculateRevenue(
 
       if (batDispatch > 0) batteryTotalKwh += batDispatch
 
+      // Demand shortfall (peak-shaving strategy only)
+      // Only counts during TOU window at positive prices — negative price hours
+      // suspend the obligation (grid is oversupplied; consumption is the right action)
+      let demandShortfallKwh = 0
+      if (
+        batteryConfig.strategy === 'peak-shaving' &&
+        price > 0 &&
+        h >= batteryConfig.touStartHour &&
+        h < batteryConfig.touEndHour
+      ) {
+        const combinedKwh = effectiveGen + Math.max(0, batDispatch)
+        demandShortfallKwh = Math.max(0, batteryConfig.demandThresholdKw - combinedKwh)
+      }
+
       // Totals
       annualGenRevenue += genRevenue
       annualBatRevenue += batRevenue
@@ -98,6 +112,7 @@ export function calculateRevenue(
         batteryRevenue: batRevenue,
         totalRevenue: genRevenue + batRevenue,
         socMwh,
+        demandShortfallKwh,
       })
     }
   }

@@ -2,6 +2,7 @@ import type { BatteryConfig } from '../../types/battery'
 import { solarFollowerDispatch } from './solarFollower'
 import { strikePriceDispatch } from './strikePrice'
 import { hourAheadDispatch } from './hourAhead'
+import { peakShavingDispatch } from './peakShaving'
 
 export interface HourlyBatteryResult {
   dispatch: number  // kWh: positive = discharge, negative = charge
@@ -24,7 +25,8 @@ export function runBatteryDispatch(
 ): HourlyBatteryResult[] {
   const results: HourlyBatteryResult[] = new Array(8760)
   let socMwh = 0
-  const isHourAhead = cfg.strategy === 'hour-ahead'
+
+  const needsFullArray = cfg.strategy === 'hour-ahead' || cfg.strategy === 'peak-shaving'
   const pointDispatchFn = cfg.strategy === 'solar-follower'
     ? solarFollowerDispatch
     : strikePriceDispatch
@@ -33,9 +35,14 @@ export function runBatteryDispatch(
     const gen = genKwh[idx]
     const price = prices[idx]
 
-    const d = isHourAhead
-      ? hourAheadDispatch(prices, idx, gen, socMwh, cfg)
-      : pointDispatchFn(price, gen, socMwh, cfg)
+    let d: number
+    if (cfg.strategy === 'hour-ahead') {
+      d = hourAheadDispatch(prices, idx, gen, socMwh, cfg)
+    } else if (cfg.strategy === 'peak-shaving') {
+      d = peakShavingDispatch(prices, idx, gen, socMwh, cfg)
+    } else {
+      d = pointDispatchFn(price, gen, socMwh, cfg)
+    }
 
     if (d > 0) {
       // Discharging: reduce SOC by energy delivered (kWh → MWh)
@@ -45,12 +52,14 @@ export function runBatteryDispatch(
       socMwh = Math.min(cfg.capacityMWh, socMwh + (Math.abs(d) / 1000) * cfg.efficiency)
     }
 
-    // Battery revenue: +for discharge (selling), -for charge (buying)
-    // Units: d (kWh) × price ($/MWh) ÷ 1000 (kWh→MWh) = $
+    // Revenue: d (kWh) × price ($/MWh) ÷ 1000 = $
     const revenue = d * price / 1000
 
     results[idx] = { dispatch: d, socMwh, revenue }
   }
+
+  // suppress unused variable warning — needsFullArray documents intent
+  void needsFullArray
 
   return results
 }

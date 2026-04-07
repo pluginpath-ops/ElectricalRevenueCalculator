@@ -1,7 +1,7 @@
 [
   {
     "id": "sam-solar-al",
-    "label": "Alabama Solar — SAM 8760 (generation)",
+    "label": "Alabama 1MW Solar Example (vertical from SAM)",
     "file": "Alabama_Solar_SAM_8760.csv",
     "type": "generation",
     "format": "sam-vertical",
@@ -10,7 +10,7 @@
   },
   {
     "id": "pvwatts-solar-al",
-    "label": "Alabama Solar — PVWatts Hourly (generation)",
+    "label": "Alabama 1MW Solar Example (from PVWatts)",
     "file": "Alabama_Solar_pvwatts_hourly.csv",
     "type": "generation",
     "format": "pvwatts",
@@ -18,8 +18,17 @@
     "description": "Hourly PVWatts performance data for Fairhope, AL"
   },
   {
+    "id": "sam-solar-wide",
+    "label": "Alabama 1MW Solar Example (wide from SAM)",
+    "file": "Solar_Gen_SAM_Wide.csv",
+    "type": "generation",
+    "format": "sam-wide",
+    "unit": "kWh",
+    "description": "Solar generation in SAM transposed format: hours as rows, days as columns"
+  },
+  {
     "id": "ms-hub-lmp-8760",
-    "label": "MS Hub LMPs — Vertical 8760 (price)",
+    "label": "MISO MS Hub LMP (vertical)",
     "file": "MS_Hub_LMPs_8760.csv",
     "type": "price",
     "format": "sam-vertical",
@@ -28,20 +37,11 @@
   },
   {
     "id": "ms-hub-lmp-wide",
-    "label": "MS Hub LMPs — Wide by Day (price)",
+    "label": "MISO MS Hub LMP (wide by day)",
     "file": "MS_Hub_LMPs_wide.csv",
     "type": "price",
     "format": "lmp-wide",
     "unit": "$/MWh",
     "description": "MS Hub LMPs in wide format: days as rows, HE1–HE24 as columns"
-  },
-  {
-    "id": "sam-solar-wide",
-    "label": "Solar Generation — SAM Wide (generation)",
-    "file": "Solar_Gen_SAM_Wide.csv",
-    "type": "generation",
-    "format": "sam-wide",
-    "unit": "kWh",
-    "description": "Solar generation in SAM transposed format: hours as rows, days as columns"
   }
 ]

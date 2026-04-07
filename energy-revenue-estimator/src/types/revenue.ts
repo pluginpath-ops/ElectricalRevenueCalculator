@@ -20,6 +20,11 @@ export interface HourlyRevenueRecord {
   totalRevenue: number
   /** Battery SOC at end of hour MWh */
   socMwh: number
+  /**
+   * kWh by which (gen + battery discharge) fell short of the demand threshold
+   * during the TOU window.  0 outside the window or when threshold was met.
+   */
+  demandShortfallKwh: number
 }
 
 export interface MonthlyBreakdown {

@@ -7,6 +7,7 @@ import { IntensityHeatmap } from '../charts/IntensityHeatmap'
 import { LineByDay } from '../charts/LineByDay'
 import { DurationCurve } from '../charts/DurationCurve'
 import { HourlyAverages } from '../charts/HourlyAverages'
+import { DemandShortfallChart } from '../charts/DemandShortfallChart'
 import { ChartErrorBoundary } from '../shared/ChartErrorBoundary'
 import { useChartInteraction } from '../../hooks/useChartInteraction'
 import { exportHourlyCsv } from '../../utils/exportCsv'
@@ -106,8 +107,15 @@ export function ResultsStep() {
         />
       </ChartErrorBoundary>
       <ChartErrorBoundary label="24-Hour Profile">
-        <LineByDay summary={results} />
+        <LineByDay summary={results} batteryConfig={batteryConfig} />
       </ChartErrorBoundary>
+
+      {/* Demand shortfall — only relevant for peak-shaving strategy */}
+      {batteryConfig.enabled && batteryConfig.strategy === 'peak-shaving' && (
+        <ChartErrorBoundary label="Demand Shortfall">
+          <DemandShortfallChart summary={results} cfg={batteryConfig} />
+        </ChartErrorBoundary>
+      )}
 
       {/* Monthly breakdown + duration curve */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

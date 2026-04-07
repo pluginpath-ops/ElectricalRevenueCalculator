@@ -5,6 +5,20 @@ import { ToggleSwitch } from '../shared/ToggleSwitch'
 import { Tooltip } from '../shared/Tooltip'
 import type { BatteryStrategy } from '../../types/battery'
 
+function fmtHour(h: number): string {
+  if (h === 0) return '12 AM'
+  if (h < 12) return `${h} AM`
+  if (h === 12) return '12 PM'
+  return `${h - 12} PM`
+}
+
+const STRATEGIES: { id: BatteryStrategy; label: string }[] = [
+  { id: 'peak-shaving',  label: 'Peak Shaving' },
+  { id: 'hour-ahead',   label: 'Market (Hour-Ahead)' },
+  { id: 'solar-follower', label: 'Solar Follower' },
+  { id: 'strike-price', label: 'Strike Price' },
+]
+
 export function BatteryPanel() {
   const cfg = useProjectStore(s => s.batteryConfig)
   const set = useProjectStore(s => s.setBatteryConfig)
@@ -14,7 +28,7 @@ export function BatteryPanel() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-[#111827]">⚡ Battery Storage</span>
-          <Tooltip content="Model a battery that charges during solar generation and discharges when output drops, or use price thresholds for arbitrage." />
+          <Tooltip content="Model a battery that charges and discharges to earn arbitrage revenue or guarantee a minimum output level." />
         </div>
         <ToggleSwitch checked={cfg.enabled} onChange={v => set({ enabled: v })} />
       </div>
@@ -65,28 +79,91 @@ export function BatteryPanel() {
             tooltip="Energy delivered on discharge / energy consumed on charge. Typical Li-ion: 85–92%."
           />
 
+          {/* Strategy selector */}
           <div>
             <div className="text-sm text-[#4B5563] mb-2 flex items-center gap-1">
               Dispatch Strategy
-              <Tooltip content="Market (Hour-Ahead): charge/discharge at optimal hours within a configurable price visibility window. Solar Follower: charge while solar generating, discharge when it drops. Strike Price: charge/discharge at fixed price thresholds." />
+              <Tooltip content="Peak Shaving: guarantee minimum output during a daily window. Market: trade on hour-ahead prices. Solar Follower: mirror solar output. Strike Price: fixed buy/sell thresholds." />
             </div>
             <div className="flex flex-wrap gap-2">
-              {(['hour-ahead', 'solar-follower', 'strike-price'] as BatteryStrategy[]).map(s => (
+              {STRATEGIES.map(({ id, label }) => (
                 <button
-                  key={s}
-                  onClick={() => set({ strategy: s })}
+                  key={id}
+                  onClick={() => set({ strategy: id })}
                   className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                    cfg.strategy === s
+                    cfg.strategy === id
                       ? 'bg-[#EFF6FF] border-[#2563EB] text-[#2563EB] font-medium'
                       : 'border-[#D1D5DB] text-[#4B5563] hover:border-[#9CA3AF]'
                   }`}
                 >
-                  {s === 'hour-ahead' ? 'Market (Hour-Ahead)' : s === 'solar-follower' ? 'Solar Follower' : 'Strike Price'}
+                  {label}
                 </button>
               ))}
             </div>
           </div>
 
+          {/* ── Peak Shaving ─────────────────────────────────────────── */}
+          {cfg.strategy === 'peak-shaving' && (
+            <div className="space-y-4 pt-1 pl-3 border-l-2 border-[#E5E7EB]">
+              <p className="text-xs text-[#6B7280]">
+                Discharges to keep combined output (solar&nbsp;+&nbsp;battery) at or above the
+                demand threshold during the TOU window. Recharges at the cheapest look-ahead
+                hours outside the window.
+              </p>
+              <SliderInput
+                label="Demand Threshold"
+                value={cfg.demandThresholdKw}
+                min={0}
+                max={2000}
+                step={50}
+                onChange={v => set({ demandThresholdKw: v })}
+                format={v => `${v} kW`}
+                tooltip="Minimum combined output (solar + battery discharge) required during the TOU window."
+              />
+              <SliderInput
+                label="TOU Start"
+                value={cfg.touStartHour}
+                min={0}
+                max={23}
+                step={1}
+                onChange={v => set({ touStartHour: Math.min(v, cfg.touEndHour - 1) })}
+                format={fmtHour}
+                tooltip="Start of the time-of-use window (inclusive)."
+              />
+              <SliderInput
+                label="TOU End"
+                value={cfg.touEndHour}
+                min={1}
+                max={24}
+                step={1}
+                onChange={v => set({ touEndHour: Math.max(v, cfg.touStartHour + 1) })}
+                format={v => fmtHour(v === 24 ? 0 : v)}
+                tooltip="End of the time-of-use window (exclusive). E.g. 21 = window closes at 9 PM."
+              />
+              <SliderInput
+                label="Charge Look-Ahead"
+                value={cfg.lookAheadHours}
+                min={1}
+                max={12}
+                step={1}
+                onChange={v => set({ lookAheadHours: v })}
+                format={v => `${v} hr${v !== 1 ? 's' : ''}`}
+                tooltip="Hours of price visibility used when selecting the cheapest charging hour outside the TOU window."
+              />
+              <div className="pt-1">
+                <ToggleSwitch
+                  checked={cfg.gridCharging}
+                  onChange={v => set({ gridCharging: v })}
+                  label="Allow grid charging"
+                />
+                <p className="text-xs text-[#9CA3AF] mt-1 ml-12">
+                  When enabled, the battery can charge from the grid even without generation.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Market (Hour-Ahead) ───────────────────────────────────── */}
           {cfg.strategy === 'hour-ahead' && (
             <div className="space-y-4 pt-1 pl-3 border-l-2 border-[#E5E7EB]">
               <p className="text-xs text-[#6B7280]">
@@ -102,7 +179,7 @@ export function BatteryPanel() {
                 step={1}
                 onChange={v => set({ lookAheadHours: v })}
                 format={v => `${v} hr${v !== 1 ? 's' : ''}`}
-                tooltip="How many hours ahead the operator can see prices. 1 = fully real-time, 4 = typical hour-ahead market, 12 = day-ahead segment."
+                tooltip="How many hours ahead the operator can see prices. 1 = real-time, 4 = typical hour-ahead market, 12 = day-ahead segment."
               />
               <div className="pt-1">
                 <ToggleSwitch
@@ -117,6 +194,7 @@ export function BatteryPanel() {
             </div>
           )}
 
+          {/* ── Solar Follower ────────────────────────────────────────── */}
           {cfg.strategy === 'solar-follower' && (
             <div className="space-y-4 pt-1 pl-3 border-l-2 border-[#E5E7EB]">
               <p className="text-xs text-[#6B7280]">
@@ -146,6 +224,7 @@ export function BatteryPanel() {
             </div>
           )}
 
+          {/* ── Strike Price ──────────────────────────────────────────── */}
           {cfg.strategy === 'strike-price' && (
             <div className="space-y-4 pt-1 pl-3 border-l-2 border-[#E5E7EB]">
               <p className="text-xs text-[#6B7280]">
