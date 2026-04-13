@@ -5,16 +5,19 @@ import type { BatteryConfig } from '../../types/battery'
  *
  * Simulates a real market participant with access to hour-ahead price forecasts
  * (as published by ISOs like MISO, PJM). Within the look-ahead window the
- * operator can see upcoming prices and acts optimally within that horizon.
+ * operator targets a full battery cycle each day rather than trading a single
+ * cheapest / most-expensive hour.
  *
  * Logic (evaluated each hour):
- *   - Build the window: current hour + next (lookAheadHours - 1) hours.
- *   - Discharge if current price is the maximum in the window AND SOC > 0.
- *   - Charge    if current price is the minimum in the window AND SOC < capacity.
- *   - Otherwise idle.
+ *   - DISCHARGE: compute hours of discharge available (SOC / dischargeRate).
+ *     Discharge when current price ≥ the K-th highest price in the window,
+ *     where K = min(hoursAvailable, windowSize).  This concentrates discharge
+ *     into the most expensive hours visible.
  *
- * Ties (multiple hours at the same price) default to idle so the battery
- * waits for a clearly better opportunity — avoids churning at flat prices.
+ *   - CHARGE: compute hours needed to reach full capacity.
+ *     Charge when current price ≤ the K-th lowest price in the window,
+ *     where K = min(hoursNeeded, windowSize).  This fills the battery across
+ *     the cheapest available hours rather than waiting for a single perfect one.
  *
  * @param prices     Full 8760-hour price array
  * @param idx        Current hour index
@@ -30,37 +33,39 @@ export function hourAheadDispatch(
   socMwh: number,
   cfg: BatteryConfig,
 ): number {
-  const lookAhead = cfg.lookAheadHours
-  const windowEnd = Math.min(idx + lookAhead, prices.length)
-  const currentPrice = prices[idx]
-
-  let windowMin = Infinity
-  let windowMax = -Infinity
-  let minCount = 0
-  let maxCount = 0
-
-  for (let i = idx; i < windowEnd; i++) {
-    const p = prices[i]
-    if (p < windowMin) { windowMin = p; minCount = 1 }
-    else if (p === windowMin) minCount++
-    if (p > windowMax) { windowMax = p; maxCount = 1 }
-    else if (p === windowMax) maxCount++
-  }
-
   const { capacityMWh, chargeRateMW, dischargeRateMW, efficiency, gridCharging } = cfg
 
-  // Discharge: current hour is uniquely the most expensive in window
-  if (currentPrice === windowMax && maxCount === 1 && socMwh > 0) {
-    const dischargeMwh = Math.min(dischargeRateMW, socMwh)
-    return dischargeMwh * 1000  // kWh
+  // Build sorted window prices (ascending)
+  const windowEnd = Math.min(idx + cfg.lookAheadHours, prices.length)
+  const windowSize = windowEnd - idx
+  const sorted: number[] = []
+  for (let i = idx; i < windowEnd; i++) sorted.push(prices[i])
+  sorted.sort((a, b) => a - b)
+
+  const currentPrice = prices[idx]
+
+  // ── DISCHARGE ──────────────────────────────────────────────────────────────
+  // Target the K most expensive hours; K = hours of discharge we can provide.
+  if (socMwh > 0) {
+    const hoursAvailable = Math.min(Math.ceil(socMwh / dischargeRateMW), windowSize)
+    // Threshold = K-th highest = (windowSize - K)-th in ascending sort
+    const dischargeThreshold = sorted[windowSize - hoursAvailable]
+    if (currentPrice >= dischargeThreshold) {
+      return Math.min(dischargeRateMW, socMwh) * 1000
+    }
   }
 
-  // Charge: current hour is uniquely the cheapest in window
-  if (currentPrice === windowMin && minCount === 1 && socMwh < capacityMWh) {
+  // ── CHARGE ─────────────────────────────────────────────────────────────────
+  // Target the K cheapest hours; K = hours needed to reach full capacity.
+  if (socMwh < capacityMWh) {
     if (!gridCharging && genKwh <= 0) return 0
-    const headroomMwh = capacityMWh - socMwh
-    const chargeMwh = Math.min(chargeRateMW, headroomMwh / efficiency)
-    return -chargeMwh * 1000  // kWh (negative = charging)
+    const hoursToFull = Math.min(Math.ceil((capacityMWh - socMwh) / chargeRateMW), windowSize)
+    // Threshold = K-th lowest in ascending sort
+    const chargeThreshold = sorted[hoursToFull - 1]
+    if (currentPrice <= chargeThreshold) {
+      const headroomMwh = capacityMWh - socMwh
+      return -Math.min(chargeRateMW, headroomMwh / efficiency) * 1000
+    }
   }
 
   return 0

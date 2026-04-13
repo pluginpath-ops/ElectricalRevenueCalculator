@@ -28,6 +28,12 @@ export interface BatteryConfig {
   touStartHour: number
   /** For peak-shaving: TOU window end hour, exclusive (1–24) */
   touEndHour: number
+  /** For peak-shaving: charge outside TOU whenever price is at or below this value ($/MWh). 0 = disabled. */
+  peakShavingBuyBelow: number
+  /** For peak-shaving: revenue rate for guaranteed capacity ($/kW per period). 0 = disabled. */
+  demandReductionRate: number
+  /** For peak-shaving: billing period for demand reduction revenue */
+  demandReductionPeriod: 'day' | 'month'
 }
 
 export interface BatteryState {
@@ -51,4 +57,7 @@ export const DEFAULT_BATTERY_CONFIG: BatteryConfig = {
   demandThresholdKw: 100,
   touStartHour: 7,
   touEndHour: 21,
+  peakShavingBuyBelow: 0,
+  demandReductionRate: 0,
+  demandReductionPeriod: 'month',
 }

@@ -150,6 +150,16 @@ export function BatteryPanel() {
                 format={v => `${v} hr${v !== 1 ? 's' : ''}`}
                 tooltip="Hours of price visibility used when selecting the cheapest charging hour outside the TOU window."
               />
+              <SliderInput
+                label="Charge Strike Price"
+                value={cfg.peakShavingBuyBelow}
+                min={0}
+                max={100}
+                step={1}
+                onChange={v => set({ peakShavingBuyBelow: v })}
+                format={v => v === 0 ? 'Off' : `$${v}/MWh`}
+                tooltip="Always charge outside the TOU window when price is at or below this level. Useful for encouraging overnight charging at cheap off-peak rates. 0 = disabled (look-ahead only)."
+              />
               <div className="pt-1">
                 <ToggleSwitch
                   checked={cfg.gridCharging}
@@ -159,6 +169,52 @@ export function BatteryPanel() {
                 <p className="text-xs text-[#9CA3AF] mt-1 ml-12">
                   When enabled, the battery can charge from the grid even without generation.
                 </p>
+              </div>
+
+              {/* Demand reduction revenue */}
+              <div className="pt-2 border-t border-[#E5E7EB]">
+                <div className="text-xs font-semibold text-[#374151] mb-2 uppercase tracking-wide">
+                  Demand Reduction Revenue
+                </div>
+                <p className="text-xs text-[#6B7280] mb-3">
+                  Capacity payment earned for each clean day or month where output met the
+                  demand threshold. Set to $0 to disable.
+                </p>
+                <SliderInput
+                  label="Rate"
+                  value={cfg.demandReductionRate}
+                  min={0}
+                  max={500}
+                  step={1}
+                  onChange={v => set({ demandReductionRate: v })}
+                  format={v => v === 0 ? 'Off' : `$${v}/kW`}
+                  tooltip="Revenue per kW of guaranteed capacity for each qualifying period. E.g. $100/kW earns demandThreshold × $100 for each clean month."
+                />
+                {cfg.demandReductionRate > 0 && (
+                  <div className="mt-3">
+                    <div className="text-xs text-[#4B5563] mb-1.5">Billing Period</div>
+                    <div className="flex gap-2">
+                      {(['day', 'month'] as const).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => set({ demandReductionPeriod: p })}
+                          className={`px-3 py-1 text-sm rounded-md border transition-colors ${
+                            cfg.demandReductionPeriod === p
+                              ? 'bg-[#F0FDF4] border-[#16A34A] text-[#16A34A] font-medium'
+                              : 'border-[#D1D5DB] text-[#4B5563] hover:border-[#9CA3AF]'
+                          }`}
+                        >
+                          Per {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-[#9CA3AF] mt-1.5">
+                      {cfg.demandReductionPeriod === 'day'
+                        ? 'Each clean day earns the rate independently.'
+                        : 'A single violation forfeits the entire month\'s payment.'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -2,18 +2,29 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import type { RevenueSummary } from '../../types/revenue'
+import type { BatteryConfig } from '../../types/battery'
 import { fmtDollar, fmtNumber } from '../../utils/formatters'
 
 interface Props {
   summary: RevenueSummary
   batteryEnabled: boolean
+  batteryConfig?: BatteryConfig
 }
 
-export function MonthlyBreakdown({ summary, batteryEnabled }: Props) {
+export function MonthlyBreakdown({ summary, batteryEnabled, batteryConfig }: Props) {
+  const showDemandReduction = batteryEnabled &&
+    batteryConfig?.strategy === 'peak-shaving' &&
+    (batteryConfig?.demandReductionRate ?? 0) > 0
+
+  // Top bar radius only on the topmost bar in the stack
+  const genRadius: [number, number, number, number] = (batteryEnabled || showDemandReduction) ? [0, 0, 0, 0] : [3, 3, 0, 0]
+  const batRadius: [number, number, number, number] = showDemandReduction ? [0, 0, 0, 0] : [3, 3, 0, 0]
+
   const data = summary.monthly.map(m => ({
     name: m.label,
     'Generation': Math.round(m.generationRevenue),
     'Battery': Math.round(m.batteryRevenue),
+    'Demand Reduction': Math.round(m.demandReductionRevenue),
   }))
 
   return (
@@ -44,9 +55,12 @@ export function MonthlyBreakdown({ summary, batteryEnabled }: Props) {
             }}
           />
           <Legend wrapperStyle={{ fontSize: '13px' }} />
-          <Bar dataKey="Generation" stackId="a" fill="#F59E0B" radius={[0, 0, 0, 0]} />
+          <Bar dataKey="Generation" stackId="a" fill="#F59E0B" radius={genRadius} />
           {batteryEnabled && (
-            <Bar dataKey="Battery" stackId="a" fill="#06B6D4" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Battery" stackId="a" fill="#06B6D4" radius={batRadius} />
+          )}
+          {showDemandReduction && (
+            <Bar dataKey="Demand Reduction" stackId="a" fill="#16A34A" radius={[3, 3, 0, 0]} />
           )}
         </BarChart>
       </ResponsiveContainer>
@@ -57,8 +71,9 @@ export function MonthlyBreakdown({ summary, batteryEnabled }: Props) {
           <thead>
             <tr className="bg-[#F1F3F5] border-t-2 border-b-2 border-[#D1D5DB]">
               <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">Month</th>
-              <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">Generation Revenue</th>
-              {batteryEnabled && <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">Battery Revenue</th>}
+              <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">Generation</th>
+              {batteryEnabled && <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">Battery</th>}
+              {showDemandReduction && <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#16A34A]">Demand Reduction</th>}
               <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">Total</th>
               <th className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">Generation (MWh)</th>
             </tr>
@@ -69,6 +84,11 @@ export function MonthlyBreakdown({ summary, batteryEnabled }: Props) {
                 <td className="px-3 py-2 font-medium">{m.label}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmtDollar(m.generationRevenue)}</td>
                 {batteryEnabled && <td className="px-3 py-2 text-right tabular-nums">{fmtDollar(m.batteryRevenue)}</td>}
+                {showDemandReduction && (
+                  <td className={`px-3 py-2 text-right tabular-nums font-medium ${m.demandReductionRevenue > 0 ? 'text-[#16A34A]' : 'text-[#9CA3AF]'}`}>
+                    {m.demandReductionRevenue > 0 ? fmtDollar(m.demandReductionRevenue) : '—'}
+                  </td>
+                )}
                 <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtDollar(m.totalRevenue)}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-[#4B5563]">{fmtNumber(m.generationKwh / 1000, 1)}</td>
               </tr>
@@ -79,6 +99,7 @@ export function MonthlyBreakdown({ summary, batteryEnabled }: Props) {
               <td className="px-3 py-2">Total</td>
               <td className="px-3 py-2 text-right tabular-nums">{fmtDollar(summary.annualGenerationRevenue)}</td>
               {batteryEnabled && <td className="px-3 py-2 text-right tabular-nums">{fmtDollar(summary.annualBatteryRevenue)}</td>}
+              {showDemandReduction && <td className="px-3 py-2 text-right tabular-nums text-[#16A34A]">{fmtDollar(summary.annualDemandReductionRevenue)}</td>}
               <td className="px-3 py-2 text-right tabular-nums">{fmtDollar(summary.annualTotalRevenue)}</td>
               <td className="px-3 py-2 text-right tabular-nums text-[#4B5563]">{fmtNumber(summary.totalGenerationKwh / 1000, 1)}</td>
             </tr>

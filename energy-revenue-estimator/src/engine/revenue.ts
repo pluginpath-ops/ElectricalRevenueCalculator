@@ -3,7 +3,7 @@ import type { BatteryConfig } from '../types/battery'
 import type { HourlyRevenueRecord, RevenueSummary } from '../types/revenue'
 import { matrixGet } from '../types/timeseries'
 import { runBatteryDispatch } from './battery/dispatch'
-import { dayIndexToMonth, buildMonthlyBreakdown, type MonthlyAccum } from './aggregations'
+import { dayIndexToMonth, buildMonthlyBreakdown, MONTH_DAY_OFFSET, type MonthlyAccum } from './aggregations'
 
 /**
  * Main revenue calculation engine.
@@ -38,6 +38,7 @@ export function calculateRevenue(
   const monthly: MonthlyAccum[] = Array.from({ length: 12 }, () => ({
     generationRevenue: 0,
     batteryRevenue: 0,
+    demandReductionRevenue: 0,
     generationKwh: 0,
     curtailedKwh: 0,
   }))
@@ -117,6 +118,45 @@ export function calculateRevenue(
     }
   }
 
+  // Demand reduction revenue — post-processing pass after hourly loop
+  // Determines which days/months had zero shortfall and credits the capacity payment.
+  let annualDemandReductionRevenue = 0
+  if (
+    batteryConfig.enabled &&
+    batteryConfig.strategy === 'peak-shaving' &&
+    batteryConfig.demandReductionRate > 0
+  ) {
+    const rate = batteryConfig.demandReductionRate
+    const kw = batteryConfig.demandThresholdKw
+
+    // Roll up daily shortfall totals
+    const dailyShortfall = new Float64Array(365)
+    for (const r of hourly) dailyShortfall[r.dayIndex] += r.demandShortfallKwh
+
+    if (batteryConfig.demandReductionPeriod === 'day') {
+      // Each clean day earns the rate regardless of other days in the month
+      for (let d = 0; d < 365; d++) {
+        if (dailyShortfall[d] === 0) {
+          const m = dayIndexToMonth(d)
+          monthly[m].demandReductionRevenue += kw * rate
+        }
+      }
+    } else {
+      // Monthly: the full month's payment only if every day in the month is clean
+      for (let m = 0; m < 12; m++) {
+        const start = MONTH_DAY_OFFSET[m]
+        const end = m < 11 ? MONTH_DAY_OFFSET[m + 1] : 365
+        let monthClean = true
+        for (let d = start; d < end; d++) {
+          if (dailyShortfall[d] > 0) { monthClean = false; break }
+        }
+        if (monthClean) monthly[m].demandReductionRevenue += kw * rate
+      }
+    }
+
+    annualDemandReductionRevenue = monthly.reduce((s, m) => s + m.demandReductionRevenue, 0)
+  }
+
   // Capacity factor: actual gen / (peak * 8760)
   const totalRawKwh = genKwh.reduce((a, b) => a + b, 0)
   const capacityFactorPct = peakGenKwh > 0
@@ -139,7 +179,8 @@ export function calculateRevenue(
   return {
     annualGenerationRevenue: annualGenRevenue,
     annualBatteryRevenue: annualBatRevenue,
-    annualTotalRevenue: annualGenRevenue + annualBatRevenue,
+    annualDemandReductionRevenue,
+    annualTotalRevenue: annualGenRevenue + annualBatRevenue + annualDemandReductionRevenue,
     totalGenerationKwh: totalGenKwh,
     totalCurtailedKwh: totalCurtKwh,
     curtailmentPct,

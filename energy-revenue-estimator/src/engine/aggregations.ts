@@ -19,6 +19,7 @@ export function dayIndexToMonth(dayIndex: number): number {
 export interface MonthlyAccum {
   generationRevenue: number
   batteryRevenue: number
+  demandReductionRevenue: number
   generationKwh: number
   curtailedKwh: number
 }
@@ -31,7 +32,8 @@ export function buildMonthlyBreakdown(
     label: MONTH_NAMES[m],
     generationRevenue: a.generationRevenue,
     batteryRevenue: a.batteryRevenue,
-    totalRevenue: a.generationRevenue + a.batteryRevenue,
+    demandReductionRevenue: a.demandReductionRevenue,
+    totalRevenue: a.generationRevenue + a.batteryRevenue + a.demandReductionRevenue,
     generationKwh: a.generationKwh,
     curtailedKwh: a.curtailedKwh,
   }))

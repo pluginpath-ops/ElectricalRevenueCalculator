@@ -5,6 +5,7 @@ import {
 import type { RevenueSummary } from '../../types/revenue'
 import type { BatteryConfig } from '../../types/battery'
 import { dayIndexToLabel } from '../../utils/formatters'
+import { fmtDollar } from '../../utils/formatters'
 
 // Day index where each month starts (non-leap year)
 const MONTH_STARTS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
@@ -28,6 +29,7 @@ interface MonthRow {
   violationDays: number
   shortfallKwh: number
   worstDayKwh: number
+  demandReductionRevenue: number
 }
 
 function fmtKwh(v: number): string {
@@ -36,6 +38,8 @@ function fmtKwh(v: number): string {
 }
 
 export function DemandShortfallChart({ summary, cfg }: Props) {
+  const showRevenue = cfg.demandReductionRate > 0
+
   // Aggregate daily shortfall
   const daily: DailyPoint[] = Array.from({ length: 365 }, (_, d) => ({
     dayIndex: d,
@@ -64,6 +68,7 @@ export function DemandShortfallChart({ summary, cfg }: Props) {
       violationDays: slice.filter(d => d.shortfallKwh > 0).length,
       shortfallKwh: slice.reduce((s, d) => s + d.shortfallKwh, 0),
       worstDayKwh: Math.max(...slice.map(d => d.shortfallKwh)),
+      demandReductionRevenue: summary.monthly[m]?.demandReductionRevenue ?? 0,
     }
   })
 
@@ -104,6 +109,14 @@ export function DemandShortfallChart({ summary, cfg }: Props) {
             </div>
             <div className="text-xs text-[#6B7280]">total unmet</div>
           </div>
+          {showRevenue && (
+            <div>
+              <div className="text-lg font-bold tabular-nums text-[#16A34A]">
+                {fmtDollar(summary.annualDemandReductionRevenue)}
+              </div>
+              <div className="text-xs text-[#6B7280]">capacity revenue</div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -153,6 +166,9 @@ export function DemandShortfallChart({ summary, cfg }: Props) {
                   <th className="text-right py-1.5 px-2 text-[#4B5563] font-semibold uppercase tracking-wide">Violation Days</th>
                   <th className="text-right py-1.5 px-2 text-[#4B5563] font-semibold uppercase tracking-wide">Total Unmet</th>
                   <th className="text-right py-1.5 px-2 text-[#4B5563] font-semibold uppercase tracking-wide">Worst Day</th>
+                  {showRevenue && (
+                    <th className="text-right py-1.5 px-2 text-[#16A34A] font-semibold uppercase tracking-wide">Capacity Revenue</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -168,9 +184,24 @@ export function DemandShortfallChart({ summary, cfg }: Props) {
                     <td className={`py-1.5 px-2 text-right tabular-nums ${row.worstDayKwh > 0 ? 'text-[#DC2626]' : 'text-[#6B7280]'}`}>
                       {row.worstDayKwh > 0 ? fmtKwh(row.worstDayKwh) : '—'}
                     </td>
+                    {showRevenue && (
+                      <td className={`py-1.5 px-2 text-right tabular-nums font-medium ${row.demandReductionRevenue > 0 ? 'text-[#16A34A]' : 'text-[#9CA3AF]'}`}>
+                        {row.demandReductionRevenue > 0 ? fmtDollar(row.demandReductionRevenue) : '—'}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
+              {showRevenue && (
+                <tfoot>
+                  <tr className="border-t border-[#D1D5DB] font-semibold">
+                    <td className="py-1.5 px-2 text-[#111827]" colSpan={4}>Annual Total</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums text-[#16A34A]">
+                      {fmtDollar(summary.annualDemandReductionRevenue)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </>

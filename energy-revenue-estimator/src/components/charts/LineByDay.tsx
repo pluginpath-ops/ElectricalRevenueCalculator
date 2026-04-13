@@ -48,18 +48,28 @@ export function LineByDay({ summary, batteryConfig }: Props) {
   const hasBattery = dayRecords.some(r => r.batteryDischargeKwh > 0 || r.batteryChargeKwh > 0)
   const label = dayIndexToLabel(selectedDay)
 
-  const genData = dayRecords.map(r => ({
+  // SOC entering hour 0 = end-of-hour-23 SOC from the previous day
+  const prevDayEndSoc = selectedDay > 0
+    ? (summary.hourly.find(r => r.dayIndex === selectedDay - 1 && r.hour === 23)?.socMwh ?? 0)
+    : 0
+
+  const genData = dayRecords.map((r, i) => ({
     hour: formatHour(r.hour),
-    'Gen (kWh)':     parseFloat(r.generationKwh.toFixed(2)),
+    // Generation lagged 1 hour: value at position i = energy produced during [i-1 → i],
+    // so the curve aligns with the stepAfter revenue block for the same hour.
+    'Gen (kWh)':     parseFloat((i === 0 ? 0 : dayRecords[i - 1].generationKwh).toFixed(2)),
     'Price ($/MWh)': parseFloat(r.priceDollarsPerMwh.toFixed(2)),
     'Gen Rev ($)':   parseFloat(r.generationRevenue.toFixed(3)),
   }))
 
-  const batData = dayRecords.map(r => ({
+  const batData = dayRecords.map((r, i) => ({
     hour: formatHour(r.hour),
-    'Power (kWh)': parseFloat((r.batteryDischargeKwh - r.batteryChargeKwh).toFixed(2)),
-    'SOC (MWh)':   parseFloat(r.socMwh.toFixed(3)),
-    'Bat Rev ($)': parseFloat(r.batteryRevenue.toFixed(3)),
+    'Power (kWh)':   parseFloat((r.batteryDischargeKwh - r.batteryChargeKwh).toFixed(2)),
+    // SOC is lagged by 1 hour: show SOC *entering* this hour (i.e. end of previous hour).
+    // This aligns the step with the end of the hour in which dispatch occurs.
+    'SOC (MWh)':     parseFloat((i === 0 ? prevDayEndSoc : dayRecords[i - 1].socMwh).toFixed(3)),
+    'Bat Rev ($)':   parseFloat(r.batteryRevenue.toFixed(3)),
+    'Price ($/MWh)': parseFloat(r.priceDollarsPerMwh.toFixed(2)),
   }))
 
   const priceDomain  = symDomain(genData.map(d => d['Price ($/MWh)']))
@@ -113,9 +123,9 @@ export function LineByDay({ summary, batteryConfig }: Props) {
             <ReferenceLine yAxisId="price" y={0} stroke="#9CA3AF" strokeWidth={1} />
             <Tooltip contentStyle={{ border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '12px' }} />
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-            <Line yAxisId="gen"   type="monotone" dataKey="Gen (kWh)"    stroke="#F59E0B" dot={false} strokeWidth={1.5} />
+            <Line yAxisId="gen"   type="monotone"  dataKey="Gen (kWh)"    stroke="#F59E0B" dot={false} strokeWidth={1.5} />
             <Line yAxisId="price" type="stepAfter" dataKey="Price ($/MWh)" stroke="#8B5CF6" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
-            <Line yAxisId="rev"   type="monotone" dataKey="Gen Rev ($)"   stroke="#16A34A" dot={false} strokeWidth={1.5} />
+            <Line yAxisId="rev"   type="stepAfter" dataKey="Gen Rev ($)"   stroke="#16A34A" dot={false} strokeWidth={1.5} />
           </LineChart>
         </ResponsiveContainer>
       </Card>
@@ -158,13 +168,16 @@ export function LineByDay({ summary, batteryConfig }: Props) {
                 axisLine={false} tickLine={false} width={44}
                 tickFormatter={v => `$${v}`}
               />
+              {/* Price axis — hidden, scale shared with gen chart above */}
+              <YAxis yAxisId="bat-price" hide domain={priceDomain} />
               {/* Single zero line — all axes are symmetric so it aligns for all 3 */}
               <ReferenceLine yAxisId="power" y={0} stroke="#9CA3AF" strokeWidth={1} />
               <Tooltip contentStyle={{ border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '12px' }} />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-              <Line yAxisId="power" type="stepAfter" dataKey="Power (kWh)" stroke="#F97316" dot={false} strokeWidth={1.5} />
-              <Line yAxisId="soc"   type="monotone"  dataKey="SOC (MWh)"   stroke="#06B6D4" dot={false} strokeWidth={1.5} />
-              <Line yAxisId="rev"   type="monotone"  dataKey="Bat Rev ($)"  stroke="#16A34A" dot={false} strokeWidth={1.5} strokeDasharray="2 2" />
+              <Line yAxisId="power"     type="stepAfter" dataKey="Power (kWh)"   stroke="#F97316" dot={false} strokeWidth={1.5} />
+              <Line yAxisId="soc"       type="monotone"  dataKey="SOC (MWh)"     stroke="#06B6D4" dot={false} strokeWidth={1.5} />
+              <Line yAxisId="bat-price" type="stepAfter" dataKey="Price ($/MWh)" stroke="#8B5CF6" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
+              <Line yAxisId="rev"       type="stepAfter" dataKey="Bat Rev ($)"   stroke="#16A34A" dot={false} strokeWidth={1.5} strokeDasharray="2 2" />
             </LineChart>
           </ResponsiveContainer>
         </Card>

@@ -94,7 +94,7 @@ export function ResultsStep() {
       </div>
 
       {/* Summary cards */}
-      <SummaryCards summary={results} batteryEnabled={batteryConfig.enabled} />
+      <SummaryCards summary={results} batteryEnabled={batteryConfig.enabled} batteryConfig={batteryConfig} />
 
       {/* Heatmap + day drill-down (always stacked) */}
       <ChartErrorBoundary label="Hour × Day Grid">
@@ -120,7 +120,7 @@ export function ResultsStep() {
       {/* Monthly breakdown + duration curve */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <ChartErrorBoundary label="Monthly Breakdown">
-          <MonthlyBreakdown summary={results} batteryEnabled={batteryConfig.enabled} />
+          <MonthlyBreakdown summary={results} batteryEnabled={batteryConfig.enabled} batteryConfig={batteryConfig} />
         </ChartErrorBoundary>
         <ChartErrorBoundary label="Duration Curve">
           <DurationCurve summary={results} />

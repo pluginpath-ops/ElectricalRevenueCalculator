@@ -60,33 +60,25 @@ export function peakShavingDispatch(
 
   // ── Charging (outside TOU, or inside TOU at price ≤ 0) ───────────────────
   if (socMwh >= capacityMWh) return 0
+  if (!gridCharging && genKwh <= 0) return 0
 
-  // Before 3 PM: urgency mode — charge whenever price ≤ window average,
-  // not just at the uniquely cheapest hour.  Ensures battery is full for
-  // the afternoon demand window.
-  const preDeadline = hour < 15
+  // Build sorted look-ahead window (ascending price)
+  const windowEnd = Math.min(idx + cfg.lookAheadHours, prices.length)
+  const windowSize = windowEnd - idx
+  const sorted: number[] = []
+  for (let i = idx; i < windowEnd; i++) sorted.push(prices[i])
+  sorted.sort((a, b) => a - b)
 
-  const lookAhead = cfg.lookAheadHours
-  const windowEnd = Math.min(idx + lookAhead, prices.length)
+  // Target K cheapest hours to reach a full charge — K scales with how empty
+  // the battery is, so the strategy naturally charges across multiple hours
+  // and becomes more selective as the battery fills.
+  const hoursToFull = Math.min(Math.ceil((capacityMWh - socMwh) / chargeRateMW), windowSize)
+  const chargeThreshold = sorted[hoursToFull - 1]
 
-  let windowMin = Infinity
-  let windowSum = 0
-  let windowCount = 0
-  let minCount = 0
-  for (let i = idx; i < windowEnd; i++) {
-    const p = prices[i]
-    windowSum += p
-    windowCount++
-    if (p < windowMin) { windowMin = p; minCount = 1 }
-    else if (p === windowMin) minCount++
-  }
-  const windowAvg = windowCount > 0 ? windowSum / windowCount : price
+  // Also charge unconditionally when price is at or below the strike price
+  const belowStrike = cfg.peakShavingBuyBelow > 0 && price <= cfg.peakShavingBuyBelow
 
-  const isCheapest = price === windowMin && minCount === 1
-  const urgentAndCheapEnough = preDeadline && price <= windowAvg
-
-  if (isCheapest || urgentAndCheapEnough) {
-    if (!gridCharging && genKwh <= 0) return 0
+  if (price <= chargeThreshold || belowStrike) {
     const headroomMwh = capacityMWh - socMwh
     const chargeMwh = Math.min(chargeRateMW, headroomMwh / efficiency)
     return -chargeMwh * 1000  // negative = charging

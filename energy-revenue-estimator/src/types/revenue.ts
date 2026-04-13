@@ -32,6 +32,8 @@ export interface MonthlyBreakdown {
   label: string  // 'Jan', 'Feb', ...
   generationRevenue: number
   batteryRevenue: number
+  /** Revenue from demand reduction / guaranteed capacity contract */
+  demandReductionRevenue: number
   totalRevenue: number
   generationKwh: number
   curtailedKwh: number
@@ -40,6 +42,8 @@ export interface MonthlyBreakdown {
 export interface RevenueSummary {
   annualGenerationRevenue: number
   annualBatteryRevenue: number
+  /** Revenue from demand reduction / guaranteed capacity contract */
+  annualDemandReductionRevenue: number
   annualTotalRevenue: number
   totalGenerationKwh: number
   totalCurtailedKwh: number
